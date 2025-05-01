@@ -1,0 +1,84 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vox Populi Survey</title>
+  <script src="https://unpkg.com/knockout@3.5.1/build/output/knockout-latest.js"></script>
+  <script src="https://unpkg.com/survey-knockout/survey.ko.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { color: #007acc; }
+  </style>
+</head>
+<body>
+  <h2>Vox Populi - Voice Survey</h2>
+  <div id="surveyContainer" data-bind="survey: survey"></div>
+
+  <script>
+    Survey.Serializer.addClass("voice-recorder", [], null, "empty");
+    Survey.ElementFactory.Instance.registerElement("voice-recorder", () => new Survey.QuestionEmpty("voice-recorder"));
+
+    Survey.CustomWidgetCollection.Instance.addCustomWidget({
+      name: "voice-recorder",
+      isFit: function (question) {
+        return question.getType() === "voice-recorder";
+      },
+      htmlTemplate: "<div><button id='recordBtn'>Record</button><button id='stopBtn' disabled>Stop</button><audio id='player' controls></audio></div>",
+      afterRender: function (question, el) {
+        const recordBtn = el.querySelector("#recordBtn");
+        const stopBtn = el.querySelector("#stopBtn");
+        const player = el.querySelector("#player");
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        recordBtn.onclick = async () => {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunks, { type: "audio/wav" });
+            const url = URL.createObjectURL(blob);
+            player.src = url;
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => {
+              question.value = reader.result;
+            };
+          };
+
+          mediaRecorder.start();
+          recordBtn.disabled = true;
+          stopBtn.disabled = false;
+        };
+
+        stopBtn.onclick = () => {
+          mediaRecorder.stop();
+          recordBtn.disabled = false;
+          stopBtn.disabled = true;
+        };
+      }
+    });
+
+    const surveyJson = {
+      showQuestionNumbers: "off",
+      elements: [
+        {
+          type: "voice-recorder",
+          name: "user_voice",
+          title: "Please record your voice message:"
+        }
+      ]
+    };
+
+    const survey = new Survey.Model(surveyJson);
+    ko.applyBindings({ survey: survey }, document.getElementById("surveyContainer"));
+  </script>
+</body>
+</html>
